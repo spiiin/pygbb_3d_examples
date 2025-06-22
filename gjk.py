@@ -1,4 +1,11 @@
-import math
+initial_objects = []
+final_objects = []
+
+# remove auxilary objects
+def clear_objects(initial_objects, final_objects):
+    for obj in final_objects:
+        if obj not in initial_objects:
+            deleteObject(obj)
 
 def prism(pt):
     vals = [(pt[0] + p[0], pt[1] + p[1], pt[2] + p[2]) for p in [(3, 3, 0), (5, 3.24, 0), (4, 4.75, 0), (4, 3.7, 2)]]
@@ -19,6 +26,7 @@ diffPoints = []
 for p1 in pts1:
     for p2 in pts2:
         diffPt = p1 - p2
+        diffPt.caption = ""
         diffPoints.append(diffPt)
         
 def find_furthest_point(obj, direction):
@@ -57,21 +65,22 @@ def next_step(simplex, direction):
                 simplex[:] = [a, c]
                 return False, CrossI(CrossI(ac, ao), ac)
             else:
-                return line([a,b], direction)
+                simplex[:] = [a, b]
+                return line(simplex, direction)
         else:
             if Dot(CrossI(ab, abc), ao) > 0:
                 if Dot(ab, ao) > 0:
                     simplex[:] = [a, b]
                     return False, CrossI(CrossI(ab, ao), ab)
                 else:
-                    simples[:] = a
+                    simplex[:] = [a]
                     return ao
             else:
-                if Dot(abc, ao):
-                    return None, abc
+                if Dot(abc, ao) > 0:
+                    return False, abc
                 else:
                     simplex[:] = [a, c, b]
-                    return None, Invisible(-abc)
+                    return False, Invisible(-abc)
         return False, None
         
     def prism(simplex, direction):
@@ -81,11 +90,14 @@ def next_step(simplex, direction):
         adb = CrossI(VectorI(a, d), VectorI(a, b))
         ao = VectorI(a, O)
         if Dot(abc, ao) > 0:
-            return triangle([a, b, c], direction)
+            simplex[:] = [a, b, c]
+            return triangle(simplex, direction)
         if Dot(acd, ao) > 0:
-            return triangle([a, c, d], direction)
-        if Dot(abc, ao) > 0:
-            return triangle([a, b, d], direction)
+            simplex[:] = [a, c, d]
+            return triangle(simplex, direction)
+        if Dot(adb, ao) > 0:
+            simplex[:] = [a, d, b]
+            return triangle(simplex, direction)
         return True, None
     
     #print(simplex)
@@ -97,24 +109,48 @@ def next_step(simplex, direction):
         return prism(simplex, direction)
     return False, direction
 
+def draw_debug_simplex(current_points):
+    for current_point in current_points:
+        current_point.is_visible = True
+        current_point.color = "blue"
+    for i in range(len(current_points)):
+        for j in range(i + 1, len(current_points)):
+            seg = Segment(current_points[i], current_points[j])
+
 def gjk(pts1, pts2):
     current_points = []    
     support = get_support(pts1, pts2, VectorI(O, PointI(0, 0, 1))) #any direction as first step
     current_points.append(support)
     direction = VectorI(support, O)
+    max_steps = 50
     while True:
+        max_steps -= 1
+        if max_steps == 0:
+            print("50 steps", len(current_points)) # should never happen
+            #draw_debug_simplex(current_points)
+            return False
         support = get_support(pts1, pts2, direction)
         current_points = [support, *current_points]
         if Dot(VectorI(O, support), direction) <= 0:
+            draw_debug_simplex(current_points)
             return False #no collision
         is_finish, direction = next_step(current_points, direction)
         if is_finish:
+            draw_debug_simplex(current_points)
             return True
 
-@O.when_clicked
 def when_point_clicked():
+    global initial_objects, final_objects
+    clear_objects(initial_objects, final_objects)
     intersect = gjk(pts1, pts2)
+    O.color = "green" if intersect else "red"
     print(intersect)
+    #print(len(initial_objects), len(final_objects))
+    final_objects = getAllObjectNames()
 
+for p in pts1: p.when_moved(when_point_clicked)
+for p in pts2: p.when_moved(when_point_clicked)
+
+
+initial_objects = getAllObjectNames() # remembers object before doing gjk
 when_point_clicked()
-
